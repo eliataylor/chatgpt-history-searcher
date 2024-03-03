@@ -15,6 +15,7 @@ class LinkScraper {
             }
 
             // Request additional information for each link
+            const threadsWithDetails = await this.requestLinkDetails(threads);
             this.printResults(threadsWithDetails);
         } catch (error) {
             console.error("Error:", error);
@@ -57,13 +58,10 @@ class LinkScraper {
     }
 
     async fetchLinkDetails(link) {
-        const uuid = link.substring(link.lastIndexOf('/'));
+        // Simulate an Ajax request (replace this with your actual API endpoint)
         const response = await $.ajax({
-            url: 'https://chat.openai.com/backend-api/conversation/'+uuid,
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${this.bearerToken}`
-            }
+            url: 'https://jsonplaceholder.typicode.com/posts/1', // Example URL
+            method: 'GET'
         });
 
         return {
@@ -82,5 +80,5 @@ class LinkScraper {
 }
 
 // Example usage:
-const linkScraper = new LinkScraper('.scrollbar-trigger', 'a', 1500);
+const linkScraper = new LinkScraper('body', 'a', 500);
 linkScraper.scrapeLinks();
