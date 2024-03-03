@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autocomplete Search</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        #results {
+            margin-top: 10px;
+        }
+        .highlight {
+            background-color: yellow;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-6">
+            <label for="jsonInput">Paste JSON:</label>
+            <textarea class="form-control" id="jsonInput" rows="5"></textarea>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="tokenInput">Bearer Token:</label>
+        <input type="text" class="form-control" id="tokenInput" placeholder="Enter Bearer Token...">
+    </div>
+
+    <button class="btn btn-primary" onclick="fetchDetails()">Fetch Details</button>
+
+    <div class="row">
+        <div class="col-md-6">
+            <label for="searchInput">Search:</label>
+            <input type="text" class="form-control" id="searchInput">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div id="results"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.10.2/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+
+    function requestLinkDetails(threads) {
+        const requests = threads.map(thread => this.fetchLinkDetails(thread.link));
+
+        // Wait for all requests to complete
+        const responses = await Promise.all(requests);
+
+        // Append the response's `messages` and `created` properties to each thread
+        const threadsWithDetails = threads.map((thread, index) => ({
+            ...thread,
+            messages: responses[index].messages,
+            created: responses[index].created
+        }));
+
+        return threadsWithDetails;
+    }
+
+    async function fetchLinkDetails(link) {
+        const uuid = link.substring(link.lastIndexOf('/'));
+        const response = await $.ajax({
+            url: 'https://chat.openai.com/backend-api/conversation/'+uuid,
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.bearerToken}`
+            }
+        });
+
+        return {
+            messages: response.title, // Example: use the 'title' property from the response
+            created: response.body // Example: use the 'body' property from the response
+        };
+    }
+
+    function fetchDetails() {
+        var jsonData = $('#jsonInput').val();
+        if (!jsonData) {
+            resultsContainer.html('<p>Please paste JSON data first.</p>');
+            return;
+        }
+
+
+    }
+
+    function extractLinksFromData(data) {
+        const linkRegex = /https?:\/\/[^\s]+/g;
+        return data.match(linkRegex) || [];
+    }
+
+    function displayResults(details) {
+        const resultsContainer = $('#results');
+        resultsContainer.html('');
+
+        if (details.length === 0) {
+            resultsContainer.html('<p>No details found.</p>');
+        } else {
+            details.forEach(detail => {
+                const resultElement = $('<div class="card mt-2">');
+                resultElement.append(`<div class="card-body"><h5 class="card-title">${detail.title}</h5><p class="card-text">${detail.link}</p><p class="card-text">${detail.messages}</p><p class="card-text">${detail.created}</p></div>`);
+                resultsContainer.append(resultElement);
+            });
+        }
+    }
+
+    function getJson() {
+        var jsonData = $('#jsonInput').val();
+        if (!jsonData) {
+            resultsContainer.html('<p>Please paste JSON data first.</p>');
+            return;
+        }
+
+        try {
+            jsonData = JSON.parse(jsonData);
+        } catch (error) {
+            resultsContainer.html('<p>Invalid JSON format.</p>');
+            return;
+        }
+        return jsonData
+    }
+
+    $(document).ready(function() {
+        $('#searchInput').on('input', function() {
+            var searchText = $(this).val().toLowerCase();
+            var resultsContainer = $('#results');
+            resultsContainer.empty();
+
+            var data = getJson();
+            if (!data) return;
+
+            var results;
+            if (searchText.length === 0) {
+                results = data; // Show all results if search input is empty
+            } else {
+                results = data.filter(function(item) {
+                    return JSON.stringify(item).toLowerCase().includes(searchText);
+                });
+            }
+
+            if (results.length === 0) {
+                resultsContainer.html('<p>No matching items found.</p>');
+            } else {
+                var resultList = $('<ul class="list-group"></ul>');
+                results.forEach(function(item) {
+                    var listItem = $('<li class="list-group-item"></li>');
+                    var jsonString = [item.title];
+                    if (item.desc) jsonString.push(item.desc);
+                    jsonString = jsonString.join(' ')
+                    var highlightedString = jsonString.replace(new RegExp(searchText, 'gi'), function(match) {
+                        return '<span class="highlight">' + match + '</span>';
+                    });
+                    listItem.html(highlightedString);
+                    resultList.append(listItem);
+                });
+
+                resultsContainer.append(resultList);
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

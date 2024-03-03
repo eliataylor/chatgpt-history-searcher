@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self' * data: blob: 'unsafe-inline' 'unsafe-eval';">
+    <title>ChatGPT Thread Searcher</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        #results {
+            margin-top: 10px;
+        }
+
+        .highlight {
+            background-color: yellow;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col">
+            <label for="jsonInput">Paste JSON:</label>
+            <textarea class="form-control" id="jsonInput" rows="5" ></textarea>
+            <span class="help-text small">Run threadscraper.js in your Developer Console and copy the output json here</span>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col">
+            <label for="searchInput">Search</label>
+            <input type="text" class="form-control" id="searchInput" >
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row justify-content-between">
+            <div class="form-group">
+                <div class="form-check">
+                    <input type="checkbox" checked class="form-check-input" id="titleCheckbox" name="role"
+                           value="title">
+                    <label class="form-check-label" for="titleCheckbox">Title</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="form-check">
+                    <input type="checkbox" checked class="form-check-input" id="systemCheckbox" name="role"
+                           value="system">
+                    <label class="form-check-label" for="systemCheckbox">System</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="form-check">
+                    <input type="checkbox" checked class="form-check-input" id="userCheckbox" name="role" value="user">
+                    <label class="form-check-label" for="userCheckbox">User</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="form-check">
+                    <input type="checkbox" checked class="form-check-input" id="assistantCheckbox" name="role"
+                           value="assistant">
+                    <label class="form-check-label" for="assistantCheckbox">Assistant</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col">
+            <div class="caption" id="pagination"></div>
+            <div id="results"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.10.2/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+
+
+    function getJson() {
+        var resultsContainer = $('#results');
+        var jsonData = $('#jsonInput').val();
+        if (!jsonData) {
+            resultsContainer.html('<p>Please paste JSON data first.</p>');
+            return;
+        }
+
+        try {
+            jsonData = JSON.parse(jsonData);
+        } catch (error) {
+            resultsContainer.html('<p>Invalid JSON format.</p>');
+            return;
+        }
+        return jsonData
+    }
+
+    function debounceEs5(func, wait, immediate) {
+        let timeout;
+        return function() {
+            const context = this;
+            const args = arguments;
+            const later = function() {
+                timeout = null;
+                if (!immediate) func.apply(context, args);
+            };
+            const callNow = immediate && !timeout;
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+            if (callNow) func.apply(context, args);
+        };
+    }
+
+    const debounce = (func, delay) => {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), delay);
+        };
+    };
+
+    function getActiveFilters() {
+        return {"title": $(`#titleCheckbox`).is(":checked"), "system": $(`#systemCheckbox`).is(":checked"), "user": $(`#userCheckbox`).is(":checked"), "assistant": $(`#assistantCheckbox`).is(":checked")};
+    }
+
+    function buildTitle(title, href) {
+        return `<hr class="mt-2" /><div class="row justify-content-between"><span>${title}</span> <a target="_blank" href="${href}">Open</a></div>`
+    }
+
+    function renderItem(item) {
+        let html = buildTitle(item.title, item.link);
+        if (item.details) {
+            const filters = getActiveFilters();
+            for (let i=0; i < item.details.length; i++) {
+                if (filters[item.details[i].author] === true && item.details[i].content.length > 0) {
+                    html += `<small class="mr-2">#${i}: ${item.details[i].author}</small>`;
+                    html += `<pre>${item.details[i].content.substring(0, 50)}</pre>`
+                }
+            }
+        }
+        return html;
+    }
+
+    function renderMatch(item, term) {
+        let html = '';
+        const filters = getActiveFilters();
+        if (item.details) {
+            for (let i =0; i < item.details.length; i++) {
+                if (filters[item.details[i].author] === true && item.details[i].content.toLowerCase().includes(term.toLowerCase())) {
+                    html += `<small class="mr-2">#${i}: ${item.details[i].author}</small>`;
+                    let content = item.details[i].content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+                    content = content.replace(new RegExp(term, 'gi'), function (match) {
+                        return '<span class="highlight">' + match + '</span>';
+                    });
+
+                    content = content.replace(/```([^`]+)```/g, '<pre class="pre-scrollable"><code>$1</code></pre>');
+                    content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+
+
+                    html += `<div>${content}</div>`
+                }
+            }
+        }
+
+        if (html.length > 0 || filters['title'] === true) {
+            if (item.title.toLowerCase().includes(term.toLowerCase())) {
+                html = buildTitle(item.title.replace(new RegExp(term, 'gi'), function (match) {
+                    return '<span class="highlight">' + match + '</span>';
+                }), item.link) + html;
+            } else if (html.length > 0)  {
+                html = buildTitle(item.title, item.link) + html;
+            }
+        }
+        return html;
+    }
+
+    function searchMatches() {
+        const data = getJson();
+        if (!data || data === '') return;
+
+        const term = $('#searchInput').val();
+
+        var resultsContainer = $('#results');
+        resultsContainer.empty();
+        let count = 0;
+        if (term.length === 0) {
+            data.forEach(d => {
+                const html = renderItem(d)
+                if (html.length > 0) {
+                    resultsContainer.append(html)
+                    count++;
+                }
+            })
+        } else {
+            data.forEach(d => {
+                const html = renderMatch(d, term)
+                if (html.length > 0) {
+                    resultsContainer.append(html)
+                    count++;
+                }
+            })
+        }
+
+        $('#pagination').html(`Showing ${count} of ${data.length}`)
+
+    }
+
+    $(document).ready(function () {
+        var savedValue = localStorage.getItem('allthreads');
+        if (savedValue) {
+            $('#jsonInput').val(savedValue.trim());
+        }
+
+        $('#jsonInput').on('blur', function () {
+            if (getJson()) {
+                localStorage.setItem('allthreads', $(this).val().trim());
+            }
+        });
+
+        const autocompleteWithDebounce = debounce(query => searchMatches(query), 500);
+
+        $('#searchInput').on('input', () => {
+            const query = $(this).val();
+            autocompleteWithDebounce(query)
+        });
+
+        $("#titleCheckbox").change(searchMatches);
+        $("#systemCheckbox").change(searchMatches);
+        $("#userCheckbox").change(searchMatches);
+        $("#assistantCheckbox").change(searchMatches);
+
+        searchMatches();
+    });
+</script>
+
+</body>
+</html>
