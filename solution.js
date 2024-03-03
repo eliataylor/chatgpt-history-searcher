@@ -9,21 +9,28 @@ class LinkScraper {
 
     async scrapeLinks() {
         try {
-            this.allThreads = await this.extractLinks();
-            while (await this.scrollDown()) {
-                const nextThreads = await this.extractLinks();
-                const newThreads = nextThreads.filter(a => !this.allThreads.find(a2 => a.link === a2.link))
-                if (newThreads.length > 0) {
-                    this.allThreads = this.allThreads.concat(newThreads);
+            let nextThreads = await this.extractLinks();
+            while (nextThreads.length > 0) {
+                this.allThreads = this.allThreads.concat(nextThreads);
+                if (this.waitTime === 0) {
+                    nextThreads = []
+                } else {
+                    this.scrollDown();
+                    nextThreads = await this.extractLinks();
+                    nextThreads = nextThreads.filter(a => !this.allThreads.find(a2 => a.link === a2.link)); // TODO loop in reverse
                     await this.wait(this.waitTime);
                 }
             }
 
             console.log("LINKS ONLY", this.allThreads);
 
-            await this.loadAllThreadDetails(this.allThreads);
+            if (this.token) {
+                await this.loadAllThreadDetails(this.allThreads);
+                console.log("LINKS WITH DETAILS", this.allThreads);
+            } else {
+                console.log("cannot load details without an Auth token");
+            }
 
-            console.log("LINKS WITH DETAILS", this.allThreads);
         } catch (error) {
             console.error("Error:", error);
         }
@@ -41,17 +48,14 @@ class LinkScraper {
 
     async scrollDown() {
         const container = document.querySelector(this.containerSelector);
-        const beforeScrollHeight = container.scrollHeight;
-        window.scrollTo(0, container.scrollHeight);
-        await this.wait(this.waitTime);
-        const afterScrollHeight = container.scrollHeight;
-        return beforeScrollHeight !== afterScrollHeight;
+        console.log(`CONTAINER height: ${container.offsetHeight} vs scrollable ${container.scrollHeight}`)
+        container.scrollTo(0, container.scrollHeight);
+        // container.scrollIntoView({ behavior: "smooth", block: "end" });
     }
 
     async wait(time) {
         return new Promise(resolve => setTimeout(resolve, time));
     }
-
 
     async fetchLinkDetails(link) {
         if (!link) return 'invalid link ' + link;
@@ -101,5 +105,6 @@ class LinkScraper {
 
 }
 
-const linkScraper = new LinkScraper('.scrollbar-trigger', 'nav a', 1500);
+// set last param to 0 to NOT auto scroll
+const linkScraper = new LinkScraper('.scrollbar-trigger .overflow-y-auto', 'nav a', 1500);
 linkScraper.scrapeLinks();
