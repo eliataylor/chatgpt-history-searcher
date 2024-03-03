@@ -31,7 +31,7 @@ class LinkScraper {
         }
 
         console.log("All Links:");
-        console.log(this.allLinks);
+        console.log(JSON.stringify(this.allLinks));
     }
 
     parseLinks(container) {
@@ -52,5 +52,5 @@ class LinkScraper {
 }
 
 // Example usage
-const scraper = new LinkScraper(".scrollbar-trigger", true); // Don't scroll in this example
+const scraper = new LinkScraper(".article-container", false); // Don't scroll in this example
 scraper.scrapeLinks();
